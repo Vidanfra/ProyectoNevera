@@ -22,7 +22,7 @@ EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"]  # Add more recipients if needed
 
 # Email credentials (hardcoded for now)
 EMAIL_USER = "vicentedanvilaf@gmail.com"
-EMAIL_PASSWORD = "jbsksusietdizzlt"  # Replace this with your real password
+EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your real password 
 
 # Flask setup
 app = Flask(__name__)
