@@ -36,20 +36,20 @@ echo "source ~/ProyectoNevera/ProyectoNevera/bin/activate"
 ### 1. Create a Bash Script
 1. Create the script:
 ```bash
-nano /home/pi/start_nevera_alert.sh
+nano home/pi/ProyectoNevera/start_nevera_alert.sh
 ```
 2. Add your commands:
 ```bash
 #!/bin/bash
-cd /home/pi/bme280_project/
-source venv/bin/activate
+cd /home/pi/ProyectoNevera/
+source ProyectoNevera/bin/activate
 python3 nevera_alert5.py
 ```
 3. Save and exit with Ctrl+X, then Y, and Enter.
 
 4. Make the script executable:
 ```bash
-chmod +x /home/pi/start_nevera_alert.sh
+chmod +x /home/pi/ProyectoNevera/start_nevera_alert.sh
 ```
 ### 2. Create a Systemd Service
 1. Create the service file:
@@ -63,10 +63,10 @@ Description=Nevera Alert Script
 After=network.target
 
 [Service]
-ExecStart=/bin/bash /home/pi/bme280_project/start_nevera_alert.sh
+ExecStart=/bin/bash /home/pi/ProyectoNevera/start_nevera_alert.sh
 Restart=always
 User=pi
-WorkingDirectory=/home/pi/bme280_project/
+WorkingDirectory= /home/pi/ProyectoNevera/
 
 [Install]
 WantedBy=multi-user.target

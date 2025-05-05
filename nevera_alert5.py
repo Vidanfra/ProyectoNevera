@@ -48,8 +48,9 @@ EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"]  # Add more recipients if needed
 EMAIL_USER = "vicentedanvilaf@gmail.com"
 EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application password of your Google account
 
-# CSV file path
+# CSV Logging setup
 DATA_FILE_PATH = 'data/data_log.csv'
+CSV_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
 
 # Flask setup
 app = Flask(__name__)
@@ -373,7 +374,7 @@ if __name__ == '__main__':
             updateServerData(bme280, alarm_raised) # Update web infomation
             logger.log_data(server_data) # Log data to calculate averages
             
-            if time.time() - last_time > 12:#DEP  # Log data every 20 minutes (1200 seconds)
+            if time.time() - last_time > CSV_LOG_TIME: # Log data every 20 minutes (1200 seconds)
                 # Log data to CSV file
                 logger.log_csv()
                 last_time = time.time()
