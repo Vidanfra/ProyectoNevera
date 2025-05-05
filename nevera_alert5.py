@@ -31,6 +31,11 @@ from email.message import EmailMessage
 import time
 import board  # Don't use "pip install board", it's a different libraty from adafruit-blinka
 from adafruit_bme280 import basic as adafruit_bme280  # pip install adafruit-circuitpython-bme280 (venv)
+import csv
+import os
+import mpld3  # pip install mpld3
+import matplotlib.pyplot as plt  # pip install matplotlib
+import numpy as np
 
 # Configurable variables
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
@@ -40,7 +45,10 @@ EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"]  # Add more recipients if needed
 
 # Email credentials (hardcoded for now)
 EMAIL_USER = "vicentedanvilaf@gmail.com"
-EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your real password 
+EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application password of your Google account
+
+# CSV file path
+DATA_FILE_PATH = 'data/data_log.csv'
 
 # Flask setup
 app = Flask(__name__)
@@ -52,8 +60,10 @@ server_data = {
     "power_supply": "OFF"
 }
 
-@app.route('/')
+# Flask route for the web page
+@app.route('/')  # <- THIS LINE FIXES YOUR 404 ERROR
 def index():
+    # Return rendered template with embedded graph and current values
     return render_template_string('''
         <!DOCTYPE html>
         <html lang="es">
@@ -65,35 +75,28 @@ def index():
                 body {
                     font-family: 'Arial', sans-serif;
                     background-color: #f4f7fc;
-                    margin: 0;
                     padding: 20px;
                     color: #333;
                 }
                 h1 {
                     color: #4CAF50;
                     text-align: center;
-                    font-size: 36px;
-                    text-transform: uppercase;
                     margin-bottom: 30px;
-                }
-                p {
-                    font-size: 18px;
-                    margin: 10px 0;
-                }
-                strong {
-                    color: #4CAF50;
                 }
                 .content {
                     background-color: #ffffff;
                     border-radius: 8px;
                     padding: 20px;
                     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                    max-width: 600px;
+                    max-width: 800px;
                     margin: 0 auto;
                 }
                 .timestamp {
-                    font-size: 20px;
+                    font-size: 16px;
                     color: #777;
+                }
+                .plot-container {
+                    margin-top: 40px;
                 }
             </style>
         </head>
@@ -105,10 +108,54 @@ def index():
                 <p><strong>Temperatura:</strong> {{ temperature }} ºC</p>
                 <p><strong>Humedad:</strong> {{ humidity }} %</p>
                 <p><strong>Presión:</strong> {{ pressure }} hPa</p>
+                <div class="plot-container">
+                    {{ plot_html | safe }}
+                </div>
             </div>
         </body>
         </html>
-    ''', **server_data)
+    ''', plot_html=plot_html(), **server_data)
+
+def plot_html():
+    if not os.path.exists(DATA_FILE_PATH):
+        print("None CSV file found. No data to plot.")
+        return 0
+
+    # Read CSV data using DictReader for named access
+    timestamps = []
+    temperatures = []
+    humidities = []
+    pressures = []
+
+    with open(DATA_FILE_PATH, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            timestamps.append(row["timestamp"])
+            temperatures.append(float(row["temperature"]))
+            humidities.append(float(row["humidity"]))
+            pressures.append(float(row["pressure"]))
+
+    # Plotting with matplotlib
+    fig, axs = plt.subplots(3, 1, sharex=True)
+    axs[0].set_title('Temperatura (°C)')
+    axs[0].plot(timestamps, temperatures, color='red')
+    axs[0].set_ylabel('°C')
+
+    axs[1].set_title('Humedad (%)')
+    axs[1].plot(timestamps, humidities, color='blue')
+    axs[1].set_ylabel('%')
+
+    axs[2].set_title('Presión (hPa)')
+    axs[2].plot(timestamps, pressures, color='green')
+    axs[2].set_ylabel('hPa')
+    axs[2].set_xlabel('Tiempo')
+
+    plt.tight_layout()
+
+    # Convert plot to HTML
+    plot_html = mpld3.fig_to_html(fig)
+
+    return plot_html
 
 # Function to send an email alert
 def emailAlert(subject, body, to):
@@ -229,8 +276,57 @@ def updateServerData(bme, power):
     server_data["temperature"] = f"{bme.temperature:.1f}"
     server_data["humidity"] = f"{bme.relative_humidity:.1f}"
     server_data["pressure"] = f"{bme.pressure:.1f}"
-    server_data["timestamp"] = time.strftime("%H:%M:%S, %d/%m/%Y")
+    server_data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     server_data["power_supply"] = "ON" if not power else "OFF"
+
+class Logger:
+    def __init__(self):
+        self.data_dict = {
+            "temperature": [],
+            "humidity": [],
+            "pressure": [],
+            "timestamp": None,
+            "power_supply": "OFF"
+        }
+    def log_data(self, instant_data):
+        self.data_dict["temperature"].append(float(instant_data["temperature"]))
+        self.data_dict["humidity"].append(float(instant_data["humidity"]))
+        self.data_dict["pressure"].append(float(instant_data["pressure"]))
+        self.data_dict["timestamp"] = instant_data["timestamp"]
+        self.data_dict["power_supply"] = instant_data["power_supply"]
+
+    def log_csv(self):
+        # Calculate the average values
+        avg_data = {
+            "temperature": sum(self.data_dict["temperature"]) / len(self.data_dict["temperature"]),
+            "humidity": sum(self.data_dict["humidity"]) / len(self.data_dict["humidity"]),
+            "pressure": sum(self.data_dict["pressure"]) / len(self.data_dict["pressure"]),
+            "timestamp": self.data_dict["timestamp"],
+            "power_supply": self.data_dict["power_supply"]
+        }
+        # Clear the data dictionary for the next logging period
+        self.data_dict["temperature"].clear()
+        self.data_dict["humidity"].clear()
+        self.data_dict["pressure"].clear()
+
+        # Create the directory if it doesn't exist
+        os.makedirs('data', exist_ok=True)
+
+        # Write the data to a CSV file
+        write_header = not os.path.exists(DATA_FILE_PATH)
+
+        with open(DATA_FILE_PATH, 'a', newline='') as f:
+            writer = csv.writer(f, delimiter=',')
+            if write_header:
+                writer.writerow(["timestamp", "temperature", "humidity", "pressure", "power_supply"])
+            writer.writerow([
+                avg_data["timestamp"],
+                f"{avg_data['temperature']:.1f}",
+                f"{avg_data['humidity']:.1f}",
+                f"{avg_data['pressure']:.1f}",
+                avg_data["power_supply"]
+            ])
+
 
 def flaskThread():
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
@@ -248,6 +344,8 @@ if __name__ == '__main__':
     if bme280 is None:
         print("Sensor BME280 no inicializado. Saliendo del programa...")
         exit()
+    # Create a logger instance
+    logger = Logger()
 
     # Display initial sensor data
     time.sleep(2)
@@ -264,9 +362,17 @@ if __name__ == '__main__':
     # Monitor the power supply
     alarm_raised = False
     try:
+        last_time = time.time()
         while True:
             showWeather(bme280)  # Display the weather data
-            updateServerData(bme280, alarm_raised) #Update web infomation
+            updateServerData(bme280, alarm_raised) # Update web infomation
+            logger.log_data(server_data) # Log data to calculate averages
+            
+            if time.time() - last_time > 12:#DEP  # Log data every 20 minutes (1200 seconds)
+                # Log data to CSV file
+                logger.log_csv()
+                last_time = time.time()
+                print(f"[{time.strftime('%H:%M:%S')}] Data stored in the CSV file")
 
             # Check power status
             if GPIO.input(POWER_PIN) == GPIO.LOW:  # 0V = No power
