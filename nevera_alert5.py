@@ -36,6 +36,7 @@ import os
 import mpld3  # pip install mpld3
 import matplotlib.pyplot as plt  # pip install matplotlib
 import numpy as np
+from datetime import datetime
 
 # Configurable variables
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
@@ -122,7 +123,7 @@ def plot_html():
         return 0
 
     # Read CSV data using DictReader for named access
-    timestamps = []
+    timestamps_raw = []
     temperatures = []
     humidities = []
     pressures = []
@@ -130,10 +131,13 @@ def plot_html():
     with open(DATA_FILE_PATH, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            timestamps.append(row["timestamp"])
+            timestamps_raw.append(row["timestamp"])
             temperatures.append(float(row["temperature"]))
             humidities.append(float(row["humidity"]))
             pressures.append(float(row["pressure"]))
+    
+    # Convert timestamps to datetime objects
+    timestamps = [datetime.fromisoformat(t) for t in timestamps_raw]
 
     # Plotting with matplotlib
     fig, axs = plt.subplots(3, 1, sharex=True)
@@ -151,6 +155,7 @@ def plot_html():
     axs[2].set_xlabel('Tiempo')
 
     plt.tight_layout()
+    plt.xticks(rotation=45)
 
     # Convert plot to HTML
     plot_html = mpld3.fig_to_html(fig)
