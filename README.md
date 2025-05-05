@@ -5,12 +5,27 @@ Project to monitor the electricity supply in a remote house in the countryside. 
 
 Run the following commands in the Raspberry Pi:
 ```bash
-mkdir ~/bme280_project
-cd ~/bme280_project
-python3 -m venv venv
-source venv/bin/activate
-pip install adafruit-circuitpython-bme280
-pip install flask
+#!/bin/bash
+
+# Create the project directory
+mkdir -p ~/ProyectoNevera
+cd ~/ProyectoNevera
+
+# Create the virtual environment
+python3 -m venv ProyectoNevera
+
+# Activate the virtual environment
+source ProyectoNevera/bin/activate
+
+# Upgrade pip (optional but recommended)
+pip install --upgrade pip
+
+# Install required Python packages
+pip install adafruit-circuitpython-bme280 flask
+
+echo "✅ Entorno virtual 'ProyectoNevera' creado y configurado con Flask y Adafruit BME280."
+echo "💡 Para activarlo más adelante, ejecuta:"
+echo "source ~/ProyectoNevera/ProyectoNevera/bin/activate"
 ```
 
 - It is necessary to **create a virtual environment** to avoid library conflicts

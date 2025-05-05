@@ -1,9 +1,27 @@
-#mkdir ~/bme280_project
-#cd ~/bme280_project
-#python3 -m venv venv
-#source venv/bin/activate
-#pip install adafruit-circuitpython-bme280
-#pip install flask
+# This script monitors the power supply to a refrigerator using a Raspberry Pi and a BME280 sensor.
+# It sends email alerts when the power is cut off and when it is restored. 
+# The script also serves a web page displaying the current temperature, humidity, and pressure readings.
+# The script uses Flask for the web server and RPi.GPIO for GPIO pin control.
+# Script created by Vicente Danvila Fraile, 16-12-2024
+
+# Create the project directory
+# mkdir -p ~/ProyectoNevera
+# cd ~/ProyectoNevera
+
+# Create the virtual environment
+# python3 -m venv ProyectoNevera
+
+# Activate the virtual environment
+# source ProyectoNevera/bin/activate
+
+# Upgrade pip (optional but recommended)
+# pip install --upgrade pip
+
+# Install required Python packages
+# pip install adafruit-circuitpython-bme280 flask
+
+# To copy the script to the Raspberry Pi:
+# scp C:\Users\vicente.danvila\Desktop\PROJECTS\ProyectoNevera\nevera_alert5.py pi@10.144.169.135:ProyectoNevera/
 
 import threading
 from flask import Flask, jsonify, render_template_string
