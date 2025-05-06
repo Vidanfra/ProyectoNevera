@@ -24,7 +24,7 @@
 # scp C:\Users\vicente.danvila\Desktop\PROJECTS\ProyectoNevera\nevera_alert5.py pi@10.144.169.135:ProyectoNevera/
 
 import threading
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, render_template_string, request
 import RPi.GPIO as GPIO
 import smtplib
 from email.message import EmailMessage
@@ -36,7 +36,7 @@ import os
 import mpld3  # pip install mpld3
 import matplotlib.pyplot as plt  # pip install matplotlib
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Configurable variables
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
@@ -65,7 +65,11 @@ server_data = {
 # Flask route for the web page
 @app.route('/')  # <- THIS LINE FIXES YOUR 404 ERROR
 def index():
-    # Return rendered template with embedded graph and current values
+    # Get the time range from query parameters (default: 24h)
+    time_range = request.args.get("range", "24h")
+
+    plot_html_content = plot_html(time_range)
+
     return render_template_string('''
         <!DOCTYPE html>
         <html lang="es">
@@ -74,38 +78,30 @@ def index():
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Monitorización Chalet</title>
             <style>
-                body {
-                    font-family: 'Arial', sans-serif;
-                    background-color: #f4f7fc;
-                    padding: 20px;
-                    color: #333;
+                body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
+                .content { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
+                h1 { color: #4CAF50; text-align: center; }
+                .btn-group { text-align: center; margin-bottom: 20px; }
+                .btn-group a {
+                    display: inline-block;
+                    margin: 0 10px;
+                    padding: 10px 20px;
+                    background-color: #4CAF50;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
                 }
-                h1 {
-                    color: #4CAF50;
-                    text-align: center;
-                    margin-bottom: 30px;
-                }
-                .content {
-                    background-color: #ffffff;
-                    border-radius: 8px;
-                    padding: 20px;
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                    max-width: 800px;
-                    margin: 0 auto;
-                }
-                .timestamp {
-                    font-size: 16px;
-                    color: #777;
-                }
-                .plot-container {
-                    margin-top: 40px;
-                }
+                .btn-group a:hover { background-color: #45a049; }
             </style>
         </head>
         <body>
             <div class="content">
                 <h1>Monitorización del Chalet</h1>
-                <p class="timestamp"><strong>Fecha y Hora:</strong> {{ timestamp }}</p>
+                <div class="btn-group">
+                    <a href="/?range=24h">Últimas 24 horas</a>
+                    <a href="/?range=7d">Últimos 7 días</a>
+                </div>
+                <p><strong>Fecha y Hora:</strong> {{ timestamp }}</p>
                 <p><strong>Suministro eléctrico:</strong> {{ power_supply }}</p>
                 <p><strong>Temperatura:</strong> {{ temperature }} ºC</p>
                 <p><strong>Humedad:</strong> {{ humidity }} %</p>
@@ -116,14 +112,14 @@ def index():
             </div>
         </body>
         </html>
-    ''', plot_html=plot_html(), **server_data)
+    ''', plot_html=plot_html_content, **server_data)
 
-def plot_html():
+def plot_html(range_type="24h"):
     if not os.path.exists(DATA_FILE_PATH):
-        print("None CSV file found. No data to plot.")
-        return 0
+        print("No available data to display the plot.")
+        # Return a message indicating no data available
+        return "<p>No hay datos disponibles para graficar.</p>"
 
-    # Read CSV data using DictReader for named access
     timestamps_raw = []
     temperatures = []
     humidities = []
@@ -136,32 +132,37 @@ def plot_html():
             temperatures.append(float(row["temperature"]))
             humidities.append(float(row["humidity"]))
             pressures.append(float(row["pressure"]))
-    
-    # Convert timestamps to datetime objects
+
     timestamps = [datetime.fromisoformat(t) for t in timestamps_raw]
+    now = datetime.now()
 
-    # Plotting with matplotlib
+    # Filter by range
+    if range_type == "7d":
+        threshold = now - timedelta(days=7)
+    else:  # Default is 24h
+        threshold = now - timedelta(hours=24)
+
+    indices = [i for i, t in enumerate(timestamps) if t >= threshold]
+    if not indices:
+        return "<p>No hay datos suficientes en este rango.</p>"
+
+    timestamps = [timestamps[i] for i in indices]
+    temperatures = [temperatures[i] for i in indices]
+    humidities = [humidities[i] for i in indices]
+    pressures = [pressures[i] for i in indices]
+
+    # Plot
     fig, axs = plt.subplots(3, 1, sharex=True)
-    axs[0].set_title('Temperatura (°C)')
     axs[0].plot(timestamps, temperatures, color='red')
-    axs[0].set_ylabel('°C')
-
-    axs[1].set_title('Humedad (%)')
+    axs[0].set_title("Temperatura (°C)")
     axs[1].plot(timestamps, humidities, color='blue')
-    axs[1].set_ylabel('%')
-
-    axs[2].set_title('Presión (hPa)')
+    axs[1].set_title("Humedad (%)")
     axs[2].plot(timestamps, pressures, color='green')
-    axs[2].set_ylabel('hPa')
-    axs[2].set_xlabel('Tiempo')
+    axs[2].set_title("Presión (hPa)")
 
-    plt.tight_layout()
     plt.xticks(rotation=45)
-
-    # Convert plot to HTML
-    plot_html = mpld3.fig_to_html(fig)
-
-    return plot_html
+    plt.tight_layout()
+    return mpld3.fig_to_html(fig)
 
 # Function to send an email alert
 def emailAlert(subject, body, to):
