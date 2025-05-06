@@ -37,6 +37,7 @@ import mpld3  # pip install mpld3
 import matplotlib.pyplot as plt  # pip install matplotlib
 import numpy as np
 from datetime import datetime, timedelta
+import sqlite3 #sudo apt-get install sqlite3
 
 # Configurable variables
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
@@ -49,8 +50,11 @@ EMAIL_USER = "vicentedanvilaf@gmail.com"
 EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application password of your Google account
 
 # CSV Logging setup
-DATA_FILE_PATH = 'data/data_log.csv'
+DATA_PATH = 'data'  # Directory to store data files
+CSV_FILE_PATH = DATA_PATH + '/data_log.csv' # CSV file path
+SQL_DB_PATH = DATA_PATH + '/data_log.db'  # SQLite database file path
 CSV_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
+SQL_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
 
 # Flask setup
 app = Flask(__name__)
@@ -286,7 +290,7 @@ def updateServerData(bme, power):
     server_data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     server_data["power_supply"] = "ON" if not power else "OFF"
 
-class Logger:
+class CSVLogger:
     def __init__(self):
         self.data_dict = {
             "temperature": [],
@@ -295,46 +299,134 @@ class Logger:
             "timestamp": None,
             "power_supply": "OFF"
         }
-    def log_data(self, instant_data):
-        self.data_dict["temperature"].append(float(instant_data["temperature"]))
-        self.data_dict["humidity"].append(float(instant_data["humidity"]))
-        self.data_dict["pressure"].append(float(instant_data["pressure"]))
-        self.data_dict["timestamp"] = instant_data["timestamp"]
-        self.data_dict["power_supply"] = instant_data["power_supply"]
 
-    def log_csv(self):
-        # Calculate the average values
-        avg_data = {
-            "temperature": sum(self.data_dict["temperature"]) / len(self.data_dict["temperature"]),
-            "humidity": sum(self.data_dict["humidity"]) / len(self.data_dict["humidity"]),
-            "pressure": sum(self.data_dict["pressure"]) / len(self.data_dict["pressure"]),
-            "timestamp": self.data_dict["timestamp"],
-            "power_supply": self.data_dict["power_supply"]
+    def get(self, instant_data):
+        try:
+            self.data_dict["temperature"].append(float(instant_data["temperature"]))
+            self.data_dict["humidity"].append(float(instant_data["humidity"]))
+            self.data_dict["pressure"].append(float(instant_data["pressure"]))
+            self.data_dict["timestamp"] = instant_data["timestamp"]
+            self.data_dict["power_supply"] = instant_data["power_supply"]
+        except Exception as e:
+            print(f"Error getting data: {e}")
+            return
+
+    def log(self):
+        try:
+            # Calculate the average values
+            avg_data = {
+                "temperature": sum(self.data_dict["temperature"]) / len(self.data_dict["temperature"]),
+                "humidity": sum(self.data_dict["humidity"]) / len(self.data_dict["humidity"]),
+                "pressure": sum(self.data_dict["pressure"]) / len(self.data_dict["pressure"]),
+                "timestamp": self.data_dict["timestamp"],
+                "power_supply": self.data_dict["power_supply"]
+            }
+            # Clear the data dictionary for the next logging period
+            self.data_dict["temperature"].clear()
+            self.data_dict["humidity"].clear()
+            self.data_dict["pressure"].clear()
+
+            # Create the directory if it doesn't exist
+            os.makedirs(DATA_PATH, exist_ok=True)
+
+            # Write the data to a CSV file
+            write_header = not os.path.exists(CSV_FILE_PATH)
+
+            with open(CSV_FILE_PATH, 'a', newline='') as f:
+                writer = csv.writer(f, delimiter=',')
+                if write_header:
+                    writer.writerow(["timestamp", "temperature", "humidity", "pressure", "power_supply"])
+                writer.writerow([
+                    avg_data["timestamp"],
+                    f"{avg_data['temperature']:.1f}",
+                    f"{avg_data['humidity']:.1f}",
+                    f"{avg_data['pressure']:.1f}",
+                    avg_data["power_supply"]
+                ])
+        except Exception as e:
+            print(f"Error writing to CSV file: {e}")
+            return
+        
+        print("Data logged to CSV file successfully.")
+        
+class SQLLogger:
+    def __init__(self):
+        self.data_dict = {
+            "temperature": [],
+            "humidity": [],
+            "pressure": [],
+            "timestamp": None,
+            "power_supply": "OFF"
         }
-        # Clear the data dictionary for the next logging period
-        self.data_dict["temperature"].clear()
-        self.data_dict["humidity"].clear()
-        self.data_dict["pressure"].clear()
 
-        # Create the directory if it doesn't exist
-        os.makedirs('data', exist_ok=True)
+    def get(self, instant_data):
+        try:
+            self.data_dict["temperature"].append(float(instant_data["temperature"]))
+            self.data_dict["humidity"].append(float(instant_data["humidity"]))
+            self.data_dict["pressure"].append(float(instant_data["pressure"]))
+            self.data_dict["timestamp"] = instant_data["timestamp"]
+            self.data_dict["power_supply"] = instant_data["power_supply"]
+        except Exception as e:
+            print(f"Error getting data: {e}")
+            return
 
-        # Write the data to a CSV file
-        write_header = not os.path.exists(DATA_FILE_PATH)
+    def log(self):
+            # Calculate the average values
+            avg_data = {
+                "temperature": sum(self.data_dict["temperature"]) / len(self.data_dict["temperature"]),
+                "humidity": sum(self.data_dict["humidity"]) / len(self.data_dict["humidity"]),
+                "pressure": sum(self.data_dict["pressure"]) / len(self.data_dict["pressure"]),
+                "timestamp": self.data_dict["timestamp"],
+                "power_supply": self.data_dict["power_supply"]
+            }
+            # Clear the data dictionary for the next logging period
+            self.data_dict["temperature"].clear()
+            self.data_dict["humidity"].clear()
+            self.data_dict["pressure"].clear()
 
-        with open(DATA_FILE_PATH, 'a', newline='') as f:
-            writer = csv.writer(f, delimiter=',')
-            if write_header:
-                writer.writerow(["timestamp", "temperature", "humidity", "pressure", "power_supply"])
-            writer.writerow([
-                avg_data["timestamp"],
-                f"{avg_data['temperature']:.1f}",
-                f"{avg_data['humidity']:.1f}",
-                f"{avg_data['pressure']:.1f}",
-                avg_data["power_supply"]
-            ])
+            # Create the directory if it doesn't exist
+            os.makedirs(DATA_PATH, exist_ok=True)
 
+            # Connect to SQLite database (creates it if it doesn't exist)
+            try:
+                with sqlite3.connect(SQL_DB_PATH) as conn:
+                    print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
 
+            except sqlite3.OperationalError as e:
+                print("Failed to open database:", e)
+                return
+            try:
+                cursor = conn.cursor()
+
+                # Create table if it doesn't exist
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS data_log (
+                        timestamp TEXT,
+                        temperature REAL,
+                        humidity REAL,
+                        pressure REAL,
+                        power_supply TEXT
+                    )
+                ''')
+                conn.commit()
+
+                # Insert data into the table
+                cursor.execute('INSERT INTO data_log VALUES (?, ?, ?, ?, ?)',
+                        (avg_data["timestamp"],
+                        f"{avg_data['temperature']:.1f}",
+                        f"{avg_data['humidity']:.1f}",
+                        f"{avg_data['pressure']:.1f}",
+                        avg_data["power_supply"]
+                        ))
+                conn.commit()
+            except sqlite3.Error as e:
+                print("Error inserting data into SQLite database:", e)
+                conn.close()
+                return
+            
+            conn.close()
+            print("Data logged to SQLite database successfully.")
+      
 def flaskThread():
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
 
@@ -351,8 +443,9 @@ if __name__ == '__main__':
     if bme280 is None:
         print("Sensor BME280 no inicializado. Saliendo del programa...")
         exit()
-    # Create a logger instance
-    logger = Logger()
+    # Create a logger instances
+    CSVlogger = CSVLogger()
+    SQLlogger = SQLLogger()
 
     # Display initial sensor data
     time.sleep(2)
@@ -369,17 +462,25 @@ if __name__ == '__main__':
     # Monitor the power supply
     alarm_raised = False
     try:
-        last_time = time.time()
+        CSV_last_time = time.time()
+        SQL_last_time = time.time()
         while True:
             showWeather(bme280)  # Display the weather data
             updateServerData(bme280, alarm_raised) # Update web infomation
-            logger.log_data(server_data) # Log data to calculate averages
+            CSVlogger.get(server_data) # Log data to calculate averages
+            SQLlogger.get(server_data) # Log data to calculate averages
             
-            if time.time() - last_time > CSV_LOG_TIME: # Log data every 20 minutes (1200 seconds)
+            if time.time() - CSV_last_time > CSV_LOG_TIME: # Log data every 20 minutes (1200 seconds)
                 # Log data to CSV file
-                logger.log_csv()
-                last_time = time.time()
+                CSVlogger.log()
+                CSV_last_time = time.time()
                 print(f"[{time.strftime('%H:%M:%S')}] Data stored in the CSV file")
+
+            if time.time() - SQL_last_time > SQL_LOG_TIME: # Log data every 20 minutes (1200 seconds)
+                # Log data to SQLite database
+                SQLlogger.log()
+                SQL_last_time = time.time()
+                print(f"[{time.strftime('%H:%M:%S')}] Data stored in the SQLite database")
 
             # Check power status
             if GPIO.input(POWER_PIN) == GPIO.LOW:  # 0V = No power
