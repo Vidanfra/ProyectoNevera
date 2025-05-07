@@ -44,7 +44,7 @@ from plotly.subplots import make_subplots
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
 SEA_LEVEL_PRESSURE = 1016  # Pressure at sea level (Valencia, 16-12-2024)
 POWER_PIN = 26  # GPIO pin used for power input monitoring
-EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"]  # Add more recipients if needed
+EMAIL_RECIPIENTS = ["vicentedf88@gmail.com", "alejandrodanvila845@gmail.com", "vicentedanvila@gmail.com", "danvilacalatayud@gmail.com" ]  # Add more recipients if needed
 
 # Email credentials (hardcoded for now)
 EMAIL_USER = "vicentedanvilaf@gmail.com"
@@ -54,8 +54,8 @@ EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application passwo
 DATA_PATH = 'data'  # Directory to store data files
 CSV_FILE_PATH = DATA_PATH + '/data_log.csv' # CSV file path
 SQL_DB_PATH = DATA_PATH + '/data_log.db'  # SQLite database file path
-CSV_LOG_TIME = 2 # Log data every 20 minutes (1200 seconds)
-SQL_LOG_TIME = 2 # Log data every 20 minutes (1200 seconds)
+CSV_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
+SQL_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
 
 # Flask setup
 app = Flask(__name__)
@@ -73,7 +73,7 @@ def index():
     # Get the time range from query parameters (default: 24h)
     time_range = request.args.get("range", "24h")
 
-    plot_html_content = plot_html(time_range)
+    plot_html_content = SQL_plot_html(time_range)
 
     return render_template_string('''
         <!DOCTYPE html>
@@ -119,7 +119,7 @@ def index():
         </html>
     ''', data_plots=plot_html_content, **server_data)
 
-def plot_html(range_type="24h"):
+def CSV_plot_html(range_type="24h"): # Not used in the web page
     if not os.path.exists(CSV_FILE_PATH):
         print("No available data to display the plot.")
         return "<p>No hay datos disponibles para graficar.</p>"
@@ -177,6 +177,67 @@ def plot_html(range_type="24h"):
     # Return the HTML string to embed in the Flask template
     return pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
 
+def SQL_plot_html(range_type="24h"): # Used in the web page
+    if not os.path.exists(SQL_DB_PATH):
+        print("No database found.")
+        return "<p>No hay base de datos disponible para graficar.</p>"
+
+    try:
+        with sqlite3.connect(SQL_DB_PATH) as conn:
+            cursor = conn.cursor()
+
+            # Determine time threshold
+            now = datetime.now()
+            if range_type == "24h":
+                threshold = now - timedelta(hours=24)
+            else:
+                threshold = now - timedelta(days=7) 
+            threshold_str = threshold.isoformat()
+
+            # Query records within the range
+            cursor.execute('''
+                SELECT timestamp, temperature, humidity, pressure
+                FROM data_log
+                WHERE timestamp >= ?
+                ORDER BY timestamp ASC
+            ''', (threshold_str,))
+            rows = cursor.fetchall()
+
+    except sqlite3.Error as e:
+        print("Error reading from SQLite database:", e)
+        return "<p>Error al leer la base de datos.</p>"
+
+    if not rows:
+        return "<p>No hay datos suficientes en este rango.</p>"
+
+    # Unpack rows into separate lists
+    timestamps = [datetime.fromisoformat(row[0]) for row in rows] # Column 0: timestamp
+    temperatures = [row[1] for row in rows] # Column 1: temperature
+    humidities = [row[2] for row in rows] # Column 2: humidity
+    pressures = [row[3] for row in rows] # Column 3: pressure
+
+    # Create subplots
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.15,
+                        subplot_titles=("Temperatura (°C)", "Humedad (%)", "Presión (hPa)"))
+
+    fig.add_trace(go.Scatter(x=timestamps, y=temperatures, name="Temperatura", line=dict(color='red')), row=1, col=1)
+    fig.add_trace(go.Scatter(x=timestamps, y=humidities, name="Humedad", line=dict(color='blue')), row=2, col=1)
+    fig.add_trace(go.Scatter(x=timestamps, y=pressures, name="Presión", line=dict(color='green')), row=3, col=1)
+
+    fig.update_layout(height=800, showlegend=False, margin=dict(t=40, b=40, l=40, r=40),
+                      template="plotly_white")
+
+    if range_type == "24h":
+        fig.update_xaxes(title_text="Fecha y hora - 24 horas", row=3, col=1)
+    else:
+        fig.update_xaxes(title_text="Fecha y hora - 7 días", row=3, col=1)
+    fig.update_xaxes(showticklabels=True, row=1, col=1)
+    fig.update_xaxes(showticklabels=True, row=2, col=1)
+    fig.update_xaxes(showticklabels=True, row=3, col=1)
+
+    # Return the HTML string to embed in the Flask template
+    return pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
+
 # Function to send an email alert
 def emailAlert(subject, body, to):
     try:
@@ -211,6 +272,8 @@ def sendAlert(bme):
         f"\tPRESIÓN: {bme.pressure:.1f} hPa\n"
         "¡Acuda a rearmar el cuadro eléctrico antes de que la comida se pudra "
         "y se llene de gusanos otra vez!\n\n"
+        "Puede consultar el estado del sistema de monitorización en la siguiente dirección:\n"
+        "https://chaletserreta.crabdance.com/\n\n"
         "Muchas gracias. Un saludo!"
     )
 
@@ -232,8 +295,9 @@ def sendRecovery(bme):
         f"Las condiciones del chalet en este momento son:\n"
         f"\tTEMPERATURA: {bme.temperature:.1f} ºC\n"
         f"\tHUMEDAD: {bme.relative_humidity:.1f} %\n"
-        f"\tPRESIÓN: {bme.pressure:.1f} hPa\n"
-
+        f"\tPRESIÓN: {bme.pressure:.1f} hPa\n\n"
+        "Puede consultar el estado del sistema de monitorización en la siguiente dirección:\n"
+        "https://chaletserreta.crabdance.com/\n\n"
         "Muchas gracias. Un saludo!"
     )
 
@@ -255,8 +319,9 @@ def sendInit(bme):
         f"Las condiciones del chalet en este momento son:\n"
         f"\tTEMPERATURA: {bme.temperature:.1f} ºC\n"
         f"\tHUMEDAD: {bme.relative_humidity:.1f} %\n"
-        f"\tPRESIÓN: {bme.pressure:.1f} hPa\n"
-
+        f"\tPRESIÓN: {bme.pressure:.1f} hPa\n\n"
+        "Puede consultar el estado del sistema de monitorización en la siguiente dirección:\n"
+        "https://chaletserreta.crabdance.com/\n\n"
         "Muchas gracias. Un saludo!"
     )
 
