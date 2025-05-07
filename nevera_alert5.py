@@ -396,45 +396,42 @@ class SQLLogger:
             # Create the directory if it doesn't exist
             os.makedirs(DATA_PATH, exist_ok=True)
 
-            # Connect to SQLite database (creates it if it doesn't exist)
             try:
                 with sqlite3.connect(SQL_DB_PATH) as conn:
                     print(f"Opened SQLite database with version {sqlite3.sqlite_version} successfully.")
+                    cursor = conn.cursor()
 
-            except sqlite3.OperationalError as e:
-                print("Failed to open database:", e)
-                return
-            try:
-                cursor = conn.cursor()
+                    # Create table if it doesn't exist
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS data_log (
+                            timestamp TEXT,
+                            temperature REAL,
+                            humidity REAL,
+                            pressure REAL,
+                            power_supply TEXT
+                        )
+                    ''')
 
-                # Create table if it doesn't exist
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS data_log (
-                        timestamp TEXT,
-                        temperature REAL,
-                        humidity REAL,
-                        pressure REAL,
-                        power_supply TEXT
-                    )
-                ''')
-                conn.commit()
-
-                # Insert data into the table
-                cursor.execute('INSERT INTO data_log VALUES (?, ?, ?, ?, ?)',
-                        (avg_data["timestamp"],
-                        f"{avg_data['temperature']:.1f}",
-                        f"{avg_data['humidity']:.1f}",
-                        f"{avg_data['pressure']:.1f}",
+                    # Insert data into the table
+                    cursor.execute('''
+                        INSERT INTO data_log (timestamp, temperature, humidity, pressure, power_supply)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        avg_data["timestamp"],
+                        round(avg_data["temperature"], 1),
+                        round(avg_data["humidity"], 1),
+                        round(avg_data["pressure"], 1),
                         avg_data["power_supply"]
-                        ))
-                conn.commit()
+                    ))
+
+                    conn.commit()
+                    print("Data logged to SQLite database successfully.")
+
             except sqlite3.Error as e:
-                print("Error inserting data into SQLite database:", e)
-                conn.close()
-                return
-            
-            conn.close()
-            print("Data logged to SQLite database successfully.")
+                print("SQLite error:", e)
+            except KeyError as e:
+                print(f"Missing expected key in avg_data: {e}")
+
       
 def flaskThread():
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
