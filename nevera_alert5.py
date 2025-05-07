@@ -33,11 +33,12 @@ import board  # Don't use "pip install board", it's a different libraty from ada
 from adafruit_bme280 import basic as adafruit_bme280  # pip install adafruit-circuitpython-bme280 (venv)
 import csv
 import os
-import mpld3  # pip install mpld3
-import matplotlib.pyplot as plt  # pip install matplotlib
 import numpy as np
 from datetime import datetime, timedelta
 import sqlite3 #sudo apt-get install sqlite3
+import plotly.graph_objs as go
+import plotly.io as pio
+from plotly.subplots import make_subplots
 
 # Configurable variables
 POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
@@ -111,17 +112,16 @@ def index():
                 <p><strong>Humedad:</strong> {{ humidity }} %</p>
                 <p><strong>Presión:</strong> {{ pressure }} hPa</p>
                 <div class="plot-container">
-                    {{ plot_html | safe }}
+                    {{ data_plots | safe }}
                 </div>
             </div>
         </body>
         </html>
-    ''', plot_html=plot_html_content, **server_data)
+    ''', data_plots=plot_html_content, **server_data)
 
 def plot_html(range_type="24h"):
     if not os.path.exists(CSV_FILE_PATH):
         print("No available data to display the plot.")
-        # Return a message indicating no data available
         return "<p>No hay datos disponibles para graficar.</p>"
 
     timestamps_raw = []
@@ -143,7 +143,7 @@ def plot_html(range_type="24h"):
     # Filter by range
     if range_type == "7d":
         threshold = now - timedelta(days=7)
-    else:  # Default is 24h
+    else:
         threshold = now - timedelta(hours=24)
 
     indices = [i for i, t in enumerate(timestamps) if t >= threshold]
@@ -155,18 +155,27 @@ def plot_html(range_type="24h"):
     humidities = [humidities[i] for i in indices]
     pressures = [pressures[i] for i in indices]
 
-    # Plot
-    fig, axs = plt.subplots(3, 1, sharex=True)
-    axs[0].plot(timestamps, temperatures, color='red')
-    axs[0].set_title("Temperatura (°C)")
-    axs[1].plot(timestamps, humidities, color='blue')
-    axs[1].set_title("Humedad (%)")
-    axs[2].plot(timestamps, pressures, color='green')
-    axs[2].set_title("Presión (hPa)")
+    # Create subplots
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.15,
+                        subplot_titles=("Temperatura (°C)", "Humedad (%)", "Presión (hPa)"))
 
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    return mpld3.fig_to_html(fig)
+    fig.add_trace(go.Scatter(x=timestamps, y=temperatures, name="Temperatura", line=dict(color='red')), row=1, col=1)
+    fig.add_trace(go.Scatter(x=timestamps, y=humidities, name="Humedad", line=dict(color='blue')), row=2, col=1)
+    fig.add_trace(go.Scatter(x=timestamps, y=pressures, name="Presión", line=dict(color='green')), row=3, col=1)
+
+    fig.update_layout(height=800, showlegend=False, margin=dict(t=40, b=40, l=40, r=40),
+                      template="plotly_white")
+
+    if range_type == "24h":
+        fig.update_xaxes(title_text="Fecha y hora - 24 horas", row=3, col=1)
+    else:
+        fig.update_xaxes(title_text="Fecha y hora - 7 días", row=3, col=1)
+    fig.update_xaxes(showticklabels=True, row=1, col=1)
+    fig.update_xaxes(showticklabels=True, row=2, col=1)
+    fig.update_xaxes(showticklabels=True, row=3, col=1)
+
+    # Return the HTML string to embed in the Flask template
+    return pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
 
 # Function to send an email alert
 def emailAlert(subject, body, to):
