@@ -53,8 +53,8 @@ EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application passwo
 DATA_PATH = 'data'  # Directory to store data files
 CSV_FILE_PATH = DATA_PATH + '/data_log.csv' # CSV file path
 SQL_DB_PATH = DATA_PATH + '/data_log.db'  # SQLite database file path
-CSV_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
-SQL_LOG_TIME = 1200 # Log data every 20 minutes (1200 seconds)
+CSV_LOG_TIME = 2 # Log data every 20 minutes (1200 seconds)
+SQL_LOG_TIME = 2 # Log data every 20 minutes (1200 seconds)
 
 # Flask setup
 app = Flask(__name__)
@@ -119,7 +119,7 @@ def index():
     ''', plot_html=plot_html_content, **server_data)
 
 def plot_html(range_type="24h"):
-    if not os.path.exists(DATA_FILE_PATH):
+    if not os.path.exists(CSV_FILE_PATH):
         print("No available data to display the plot.")
         # Return a message indicating no data available
         return "<p>No hay datos disponibles para graficar.</p>"
@@ -129,7 +129,7 @@ def plot_html(range_type="24h"):
     humidities = []
     pressures = []
 
-    with open(DATA_FILE_PATH, 'r') as f:
+    with open(CSV_FILE_PATH, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
             timestamps_raw.append(row["timestamp"])
