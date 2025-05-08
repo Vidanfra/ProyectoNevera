@@ -6,6 +6,7 @@ import requests
 
 # Configurable variables
 POLLING_INTERVAL = 5  # Time to sleep in seconds between checks
+TIMEOUT = 20  # Timeout for requests in seconds
 EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"]  # Add more recipients if needed
 URL_WEBSITE = "http://chaletserreta.crabdance.com"  # URL public Raspberry Pi website
 ZEROTIER_WEBSITE = "http://10.144.169.135:5000/"  # Local address of the Raspberry Pi website through ZeroTier
@@ -74,7 +75,7 @@ def check_website(url, web_ok):
     time_string = time.strftime("%H:%M:%S, %d/%m/%Y", local_time)
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=TIMEOUT)
         if response.status_code == 200:
             print(f"{time_string} - {url} is UP. Status code: {response.status_code}")
             return True
