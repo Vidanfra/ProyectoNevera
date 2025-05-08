@@ -45,7 +45,8 @@ POLLING_INTERVAL = 1  # Time to sleep in seconds between checks
 SEA_LEVEL_PRESSURE = 1016  # Pressure at sea level (Valencia, 16-12-2024)
 POWER_PIN = 26  # GPIO pin used for power input monitoring
 EMAIL_RECIPIENTS = ["vicentedf88@gmail.com", "alejandrodanvila845@gmail.com", "vicentedanvila@gmail.com", "danvilacalatayud@gmail.com" ]  # Add more recipients if needed
-
+#EMAIL_RECIPIENTS = ["vicentedf88@gmail.com"] # DEBUGGING ONLY
+                    
 # Email credentials (hardcoded for now)
 EMAIL_USER = "vicentedanvilaf@gmail.com"
 EMAIL_PASSWORD = "ubjwhhbazadlmrii"  # Replace this with your application password of your Google account
@@ -263,7 +264,7 @@ def sendAlert(bme):
     local_time = time.localtime(time.time())
     time_string = time.strftime("%H:%M:%S, %d/%m/%Y", local_time)
 
-    subject = "Nevera sin electricidad!"
+    subject = "🔴 Nevera sin electricidad!"
     body = (
         f"¡El suministro eléctrico en el chalet se ha cortado a las {time_string}!\n"
         f"Las condiciones del chalet en este momento son:\n"
@@ -289,7 +290,7 @@ def sendRecovery(bme):
     local_time = time.localtime(time.time())
     time_string = time.strftime("%H:%M:%S, %d/%m/%Y", local_time)
 
-    subject = "Suministro eléctrico recuperado!"
+    subject = "✅ Suministro eléctrico recuperado!"
     body = (
         f"¡Tras el corte eléctrico, el suministro eléctrico en el chalet se ha recuperado a las {time_string}!\n"
         f"Las condiciones del chalet en este momento son:\n"
@@ -313,7 +314,7 @@ def sendInit(bme):
     local_time = time.localtime(time.time())
     time_string = time.strftime("%H:%M:%S, %d/%m/%Y", local_time)
 
-    subject = "El sistema de monitorización se ha iniciado!"
+    subject = "✅ El sistema de monitorización se ha iniciado!"
     body = (
         f"¡El sistema de monitorización del suministro eléctrico en el chalet se ha iniciado a las {time_string}!\n"
         f"Las condiciones del chalet en este momento son:\n"

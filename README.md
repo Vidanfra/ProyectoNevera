@@ -36,7 +36,7 @@ echo "source ~/ProyectoNevera/ProyectoNevera/bin/activate"
 ### 1. Create a Bash Script
 1. Create the script:
 ```bash
-nano home/pi/ProyectoNevera/start_nevera_alert.sh
+nano /home/pi/ProyectoNevera/start_nevera_alert.sh
 ```
 2. Add your commands:
 ```bash
